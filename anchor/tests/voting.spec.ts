@@ -104,3 +104,38 @@ describe("Voting", () => {
     expect(blueCandidate.candidateName).toBe("Blue");
   });
 });
+it("Should prevent voting before poll start", async () => {
+  try {
+    await program.rpc.vote(candidateName, pollId, {
+      accounts: {
+        signer: provider.wallet.publicKey,
+        poll: pollPda,
+        candidate: candidatePda,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      },
+    });
+    assert.fail("Voting should not be allowed before poll starts");
+  } catch (err) {
+    assert.ok(err.toString().includes("Voting is not allowed before the poll starts"));
+  }
+});
+
+it("Should prevent voting after poll ends", async () => {
+  try {
+    // Move time forward beyond poll end
+    await provider.connection.requestAirdrop(provider.wallet.publicKey, 1_000_000_000);
+    await sleep(6000); // Simulate time after poll end
+
+    await program.rpc.vote(candidateName, pollId, {
+      accounts: {
+        signer: provider.wallet.publicKey,
+        poll: pollPda,
+        candidate: candidatePda,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      },
+    });
+    assert.fail("Voting should not be allowed after poll ends");
+  } catch (err) {
+    assert.ok(err.toString().includes("Voting is not allowed after the poll has ended"));
+  }
+});

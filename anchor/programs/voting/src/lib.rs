@@ -34,13 +34,28 @@ pub mod voting {
     }
 
     pub fn vote(ctx: Context<Vote>, _candidate_name: String, _poll_id: u64) -> Result<()> {
-        let candidate = &mut ctx.accounts.candidate;
-        candidate.candidate_votes += 1;
-
-        msg!("Voted for candidate: {}", candidate.candidate_name);
-        msg!("Votes: {}", candidate.candidate_votes);
-        Ok(())
-    }
+      let candidate = &mut ctx.accounts.candidate;
+      let poll = &ctx.accounts.poll;
+  
+      let clock = Clock::get()?; // Get current blockchain time
+  
+      // Ensure voting is within the poll's active time frame
+      require!(
+          clock.unix_timestamp as u64 >= poll.poll_start,
+          VotingError::PollNotStarted
+      );
+      require!(
+          clock.unix_timestamp as u64 <= poll.poll_end,
+          VotingError::PollEnded
+      );
+  
+      candidate.candidate_votes += 1;
+  
+      msg!("Voted for candidate: {}", candidate.candidate_name);
+      msg!("Votes: {}", candidate.candidate_votes);
+      Ok(())
+  }
+  
 
 }
 
@@ -124,4 +139,18 @@ pub struct Poll {
     pub poll_start: u64,
     pub poll_end: u64,
     pub candidate_amount: u64,
+}
+#[error_code]
+pub enum VotingError {
+    #[msg("The poll_end timestamp must be in the future.")]
+    InvalidPollEndTimestamp,
+
+    #[msg("Invalid Unix Timestamp provided.")]
+    InvalidUnixTimestamp,
+
+    #[msg("Voting is not allowed before the poll starts.")]
+    PollNotStarted,
+
+    #[msg("Voting is not allowed after the poll has ended.")]
+    PollEnded,
 }
