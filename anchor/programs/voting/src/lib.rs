@@ -14,19 +14,33 @@ pub mod voting {
                             poll_start: u64,
                             poll_end: u64) -> Result<()> {
 
+        let current_timestamp = Clock::get()?.unix_timestamp as u64;
+
+
+        if poll_end <= current_timestamp {
+            return Err(error!(PollError::PollEndInThePast));
+        }
+
+
+        if poll_end <= 0 {
+            return Err(error!(PollError::InvalidPollEndTimestamp));
+        }
+
         let poll = &mut ctx.accounts.poll;
         poll.poll_id = poll_id;
         poll.description = description;
         poll.poll_start = poll_start;
         poll.poll_end = poll_end;
         poll.candidate_amount = 0;
+
         Ok(())
     }
 
-    pub fn initialize_candidate(ctx: Context<InitializeCandidate>, 
-                                candidate_name: String,
-                                _poll_id: u64
-                            ) -> Result<()> {
+    pub fn initialize_candidate(
+        ctx: Context<InitializeCandidate>, 
+        candidate_name: String,
+        _poll_id: u64
+    ) -> Result<()> {
         let candidate = &mut ctx.accounts.candidate;
         candidate.candidate_name = candidate_name;
         candidate.candidate_votes = 0;
@@ -34,14 +48,23 @@ pub mod voting {
     }
 
     pub fn vote(ctx: Context<Vote>, _candidate_name: String, _poll_id: u64) -> Result<()> {
+        let poll = &mut ctx.accounts.poll;
         let candidate = &mut ctx.accounts.candidate;
+        let voter_key = ctx.accounts.signer.key();
+
+
+        if poll.voters.contains(&voter_key) {
+            return Err(error!(ErrorCode::AlreadyVoted));
+        }
+
+
+        poll.voters.push(voter_key);
         candidate.candidate_votes += 1;
 
         msg!("Voted for candidate: {}", candidate.candidate_name);
-        msg!("Votes: {}", candidate.candidate_votes);
+        msg!("Total votes for {}: {}", candidate.candidate_name, candidate.candidate_votes);
         Ok(())
     }
-
 }
 
 #[derive(Accounts)]
@@ -51,21 +74,21 @@ pub struct Vote<'info> {
     pub signer: Signer<'info>,
 
     #[account(
+        mut,
         seeds = [poll_id.to_le_bytes().as_ref()],
         bump
-      )]
+    )]
     pub poll: Account<'info, Poll>,
 
     #[account(
-      mut,
-      seeds = [poll_id.to_le_bytes().as_ref(), candidate_name.as_ref()],
-      bump
+        mut,
+        seeds = [poll_id.to_le_bytes().as_ref(), candidate_name.as_ref()],
+        bump
     )]
     pub candidate: Account<'info, Candidate>,
 
     pub system_program: Program<'info, System>,
 }
-
 
 #[derive(Accounts)]
 #[instruction(candidate_name: String, poll_id: u64)]
@@ -77,17 +100,18 @@ pub struct InitializeCandidate<'info> {
         mut,
         seeds = [poll_id.to_le_bytes().as_ref()],
         bump
-      )]
+    )]
     pub poll: Account<'info, Poll>,
 
     #[account(
-      init,
-      payer = signer,
-      space = 8 + Candidate::INIT_SPACE,
-      seeds = [poll_id.to_le_bytes().as_ref(), candidate_name.as_ref()],
-      bump
+        init,
+        payer = signer,
+        space = 8 + Candidate::INIT_SPACE,
+        seeds = [poll_id.to_le_bytes().as_ref(), candidate_name.as_ref()],
+        bump
     )]
     pub candidate: Account<'info, Candidate>,
+    
     pub system_program: Program<'info, System>,
 }
 
@@ -104,14 +128,16 @@ pub struct Candidate {
 pub struct InitializePoll<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
+
     #[account(
-      init,
-      payer = signer,
-      space = 8 + Poll::INIT_SPACE,
-      seeds = [poll_id.to_le_bytes().as_ref()],
-      bump
+        init,
+        payer = signer,
+        space = 8 + Poll::INIT_SPACE,
+        seeds = [poll_id.to_le_bytes().as_ref()],
+        bump
     )]
     pub poll: Account<'info, Poll>,
+
     pub system_program: Program<'info, System>,
 }
 
@@ -124,4 +150,20 @@ pub struct Poll {
     pub poll_start: u64,
     pub poll_end: u64,
     pub candidate_amount: u64,
+    pub voters: Vec<Pubkey>, 
+}
+
+#[error_code]
+pub enum PollError {
+    #[msg("Poll end time must be in the future.")]
+    PollEndInThePast,
+
+    #[msg("Invalid poll end timestamp.")]
+    InvalidPollEndTimestamp,
+}
+
+#[error_code]
+pub enum ErrorCode {
+    #[msg("You have already voted.")]
+    AlreadyVoted,
 }
