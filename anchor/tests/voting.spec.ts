@@ -103,4 +103,70 @@ describe("Voting", () => {
     expect(blueCandidate.candidateVotes.toNumber()).toBe(1);
     expect(blueCandidate.candidateName).toBe("Blue");
   });
+  it("Fails to create a poll with an expired poll_end timestamp", async () => {
+    try {
+        await program.methods.initializePoll(
+            new anchor.BN(1),
+            "Expired Poll",
+            new anchor.BN(1700000000), // Some past timestamp
+            new anchor.BN(1700000100)  // Expired timestamp
+        )
+        .accounts({
+            poll: poll.publicKey,
+            signer: provider.wallet.publicKey,
+            systemProgram: anchor.web3.SystemProgram.programId
+        })
+        .signers([poll])
+        .rpc();
+    } catch (err) {
+        assert.include(err.message, "The poll_end timestamp must be in the future");
+        return;
+    }
+    assert.fail("Poll creation should have failed with expired poll_end timestamp");
+});
+
+it("Fails to create a poll with an invalid Unix timestamp", async () => {
+    try {
+        await program.methods.initializePoll(
+            new anchor.BN(2),
+            "Invalid Timestamp Poll",
+            new anchor.BN(1700000000), 
+            new anchor.BN(99999)  // Invalid timestamp (not a real Unix timestamp)
+        )
+        .accounts({
+            poll: poll.publicKey,
+            signer: provider.wallet.publicKey,
+            systemProgram: anchor.web3.SystemProgram.programId
+        })
+        .signers([poll])
+        .rpc();
+    } catch (err) {
+        assert.include(err.message, "Invalid Unix Timestamp provided");
+        return;
+    }
+    assert.fail("Poll creation should have failed with invalid poll_end timestamp");
+});
+
+it("Successfully creates a poll with a valid future poll_end timestamp", async () => {
+    try {
+        const tx = await program.methods.initializePoll(
+            new anchor.BN(3),
+            "Valid Poll",
+            new anchor.BN(1700000000), 
+            new anchor.BN(Math.floor(Date.now() / 1000) + 3600) // Current time + 1 hour
+        )
+        .accounts({
+            poll: poll.publicKey,
+            signer: provider.wallet.publicKey,
+            systemProgram: anchor.web3.SystemProgram.programId
+        })
+        .signers([poll])
+        .rpc();
+
+        console.log("Poll created successfully, Transaction:", tx);
+    } catch (err) {
+        assert.fail("Poll creation should have succeeded with a valid timestamp");
+    }
+});
+
 });
