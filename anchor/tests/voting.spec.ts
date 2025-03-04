@@ -164,5 +164,62 @@ it("vote candidates", async () => {
   expect(blueCandidate.candidateVotes.toNumber()).toBe(1);
   expect(blueCandidate.candidateName).toBe("Blue");
 });
+it("initializes a poll", async () => {
+  await votingProgram.methods.initializePoll(
+    new anchor.BN(1),
+    "What is your favorite color?",
+    new anchor.BN(100),
+    new anchor.BN(1739370789),
+  ).rpc();
+
+  const [pollAddress] = PublicKey.findProgramAddressSync(
+    [new anchor.BN(1).toArrayLike(Buffer, "le", 8)],
+    votingProgram.programId,
+  );
+
+  const poll = await votingProgram.account.poll.fetch(pollAddress);
+
+  expect(poll.pollId.toNumber()).toBe(1);
+  expect(poll.description).toBe("What is your favorite color?");
+  expect(poll.pollStart.toNumber()).toBe(100);
+  expect(poll.totalVotes.toNumber()).toBe(0); // New check
+});
+it("vote candidates and check total votes", async () => {
+  await votingProgram.methods.vote(
+    "Pink",
+    new anchor.BN(1),
+  ).rpc();
+  await votingProgram.methods.vote(
+    "Blue",
+    new anchor.BN(1),
+  ).rpc();
+  await votingProgram.methods.vote(
+    "Pink",
+    new anchor.BN(1),
+  ).rpc();
+
+  const [pinkAddress] = PublicKey.findProgramAddressSync(
+    [new anchor.BN(1).toArrayLike(Buffer, "le", 8), Buffer.from("Pink")],
+    votingProgram.programId,
+  );
+  const pinkCandidate = await votingProgram.account.candidate.fetch(pinkAddress);
+  expect(pinkCandidate.candidateVotes.toNumber()).toBe(2);
+
+  const [blueAddress] = PublicKey.findProgramAddressSync(
+    [new anchor.BN(1).toArrayLike(Buffer, "le", 8), Buffer.from("Blue")],
+    votingProgram.programId,
+  );
+  const blueCandidate = await votingProgram.account.candidate.fetch(blueAddress);
+  expect(blueCandidate.candidateVotes.toNumber()).toBe(1);
+
+  // Check total votes in poll
+  const [pollAddress] = PublicKey.findProgramAddressSync(
+    [new anchor.BN(1).toArrayLike(Buffer, "le", 8)],
+    votingProgram.programId,
+  );
+  const poll = await votingProgram.account.poll.fetch(pollAddress);
+  expect(poll.totalVotes.toNumber()).toBe(3); // Total votes should be 3
+});
+
 
 });
