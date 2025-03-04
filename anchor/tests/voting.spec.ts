@@ -18,6 +18,44 @@ describe("Voting", () => {
     provider = new BankrunProvider(context);
     votingProgram = new anchor.Program<Voting>(IDL, provider);
   });
+  it("should fail if poll_end is in the past", async () => {
+    const currentTime = new Date().getTime() / 1000; 
+    const pollEndInPast = new anchor.BN(currentTime - 1000); 
+
+    try {
+        await votingProgram.methods
+            .initializePoll(
+                new anchor.BN(1),
+                "What is your favorite color?",
+                new anchor.BN(100),
+                pollEndInPast
+            )
+            .rpc();
+        throw new Error("Poll should not be created with poll_end in the past.");
+    } catch (err) {
+        console.log("Error:", err.message);
+        expect(err.message).toContain("Poll end time must be in the future.");
+    }
+});
+
+it("should fail if poll_end is not a valid Unix timestamp", async () => {
+    const invalidPollEnd = new anchor.BN(0); 
+
+    try {
+        await votingProgram.methods
+            .initializePoll(
+                new anchor.BN(1),
+                "What is your favorite color?",
+                new anchor.BN(100),
+                invalidPollEnd
+            )
+            .rpc();
+        throw new Error("Poll should not be created with an invalid poll_end timestamp.");
+    } catch (err) {
+        console.log("Error:", err.message);
+        expect(err.message).toContain("Invalid poll end timestamp.");
+    }
+});
 
   it("initializes a poll", async () => {
     await votingProgram.methods

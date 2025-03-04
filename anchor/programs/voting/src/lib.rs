@@ -8,20 +8,31 @@ declare_id!("coUnmi3oBUtwtd9fjeAvSsJssXh5A5xyPbhpewyzRVF");
 pub mod voting {
     use super::*;
 
-    pub fn initialize_poll(
-        ctx: Context<InitializePoll>, 
-        poll_id: u64,
-        description: String,
-        poll_start: u64,
-        poll_end: u64
-    ) -> Result<()> {
+    pub fn initialize_poll(ctx: Context<InitializePoll>, 
+                            poll_id: u64,
+                            description: String,
+                            poll_start: u64,
+                            poll_end: u64) -> Result<()> {
+
+        let current_timestamp = Clock::get()?.unix_timestamp as u64;
+
+
+        if poll_end <= current_timestamp {
+            return Err(error!(PollError::PollEndInThePast));
+        }
+
+
+        if poll_end <= 0 {
+            return Err(error!(PollError::InvalidPollEndTimestamp));
+        }
+
         let poll = &mut ctx.accounts.poll;
         poll.poll_id = poll_id;
         poll.description = description;
         poll.poll_start = poll_start;
         poll.poll_end = poll_end;
         poll.candidate_amount = 0;
-        poll.voters = Vec::new(); 
+
         Ok(())
     }
 
@@ -43,7 +54,7 @@ pub mod voting {
 
 
         if poll.voters.contains(&voter_key) {
-            return Err(ErrorCode::AlreadyVoted.into());
+            return Err(error!(ErrorCode::AlreadyVoted));
         }
 
 
@@ -142,6 +153,14 @@ pub struct Poll {
     pub voters: Vec<Pubkey>, 
 }
 
+#[error_code]
+pub enum PollError {
+    #[msg("Poll end time must be in the future.")]
+    PollEndInThePast,
+
+    #[msg("Invalid poll end timestamp.")]
+    InvalidPollEndTimestamp,
+}
 
 #[error_code]
 pub enum ErrorCode {
