@@ -103,4 +103,23 @@ describe("Voting", () => {
     expect(blueCandidate.candidateVotes.toNumber()).toBe(1);
     expect(blueCandidate.candidateName).toBe("Blue");
   });
+  it("prevents duplicate votes", async () => {
+    try {
+      await votingProgram.methods.vote(
+        "Pink",
+        new anchor.BN(1),
+      ).rpc();
+  
+      await votingProgram.methods.vote( // Voting again (should fail)
+        "Pink",
+        new anchor.BN(1),
+      ).rpc();
+      
+      throw new Error("Duplicate vote was allowed, test failed!");
+    } catch (error) {
+      console.log("Duplicate vote prevented successfully.");
+      expect(error.toString()).toContain("You have already voted in this poll.");
+    }
+  });
+  
 });
