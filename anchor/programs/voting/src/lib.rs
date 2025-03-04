@@ -36,28 +36,26 @@ pub mod voting {
         Ok(())
     }
 
-    pub fn initialize_candidate(
-        ctx: Context<InitializeCandidate>, 
-        candidate_name: String,
-        _poll_id: u64
-    ) -> Result<()> {
-        let candidate = &mut ctx.accounts.candidate;
-        candidate.candidate_name = candidate_name;
-        candidate.candidate_votes = 0;
-        Ok(())
-    }
-
     pub fn vote(ctx: Context<Vote>, _candidate_name: String, _poll_id: u64) -> Result<()> {
+        let current_timestamp = Clock::get()?.unix_timestamp as u64;
         let poll = &mut ctx.accounts.poll;
         let candidate = &mut ctx.accounts.candidate;
         let voter_key = ctx.accounts.signer.key();
 
 
-        if poll.voters.contains(&voter_key) {
-            return Err(error!(ErrorCode::AlreadyVoted));
+        if current_timestamp < poll.poll_start {
+            return Err(error!(PollError::PollNotStarted));
+        }
+        if current_timestamp > poll.poll_end {
+            return Err(error!(PollError::PollEnded));
         }
 
 
+        if poll.voters.contains(&voter_key) {
+            return Err(error!(PollError::AlreadyVoted));
+        }
+
+        
         poll.voters.push(voter_key);
         candidate.candidate_votes += 1;
 
@@ -68,7 +66,33 @@ pub mod voting {
 }
 
 #[derive(Accounts)]
-#[instruction(candidate_name: String, poll_id: u64)]
+pub struct InitializePoll<'info> {
+    #[account(mut)]
+    pub signer: Signer<'info>,
+    #[account(
+      init,
+      payer = signer,
+      space = 8 + Poll::INIT_SPACE,
+      seeds = [poll_id.to_le_bytes().as_ref()],
+      bump
+    )]
+    pub poll: Account<'info, Poll>,
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct Poll {
+    pub poll_id: u64,
+    #[max_len(200)]
+    pub description: String,
+    pub poll_start: u64,
+    pub poll_end: u64,
+    pub candidate_amount: u64,
+    pub voters: Vec<Pubkey>,  
+}
+
+#[derive(Accounts)]
 pub struct Vote<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
@@ -91,7 +115,6 @@ pub struct Vote<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(candidate_name: String, poll_id: u64)]
 pub struct InitializeCandidate<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
@@ -123,36 +146,6 @@ pub struct Candidate {
     pub candidate_votes: u64,
 }
 
-#[derive(Accounts)]
-#[instruction(poll_id: u64)]
-pub struct InitializePoll<'info> {
-    #[account(mut)]
-    pub signer: Signer<'info>,
-
-    #[account(
-        init,
-        payer = signer,
-        space = 8 + Poll::INIT_SPACE,
-        seeds = [poll_id.to_le_bytes().as_ref()],
-        bump
-    )]
-    pub poll: Account<'info, Poll>,
-
-    pub system_program: Program<'info, System>,
-}
-
-#[account]
-#[derive(InitSpace)]
-pub struct Poll {
-    pub poll_id: u64,
-    #[max_len(200)]
-    pub description: String,
-    pub poll_start: u64,
-    pub poll_end: u64,
-    pub candidate_amount: u64,
-    pub voters: Vec<Pubkey>, 
-}
-
 #[error_code]
 pub enum PollError {
     #[msg("Poll end time must be in the future.")]
@@ -160,10 +153,13 @@ pub enum PollError {
 
     #[msg("Invalid poll end timestamp.")]
     InvalidPollEndTimestamp,
-}
 
-#[error_code]
-pub enum ErrorCode {
+    #[msg("The poll has not started yet.")]
+    PollNotStarted,
+
+    #[msg("The poll has already ended.")]
+    PollEnded,
+
     #[msg("You have already voted.")]
     AlreadyVoted,
 }
