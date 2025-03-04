@@ -8,20 +8,23 @@ declare_id!("coUnmi3oBUtwtd9fjeAvSsJssXh5A5xyPbhpewyzRVF");
 pub mod voting {
     use super::*;
 
-    pub fn initialize_poll(ctx: Context<InitializePoll>, 
-                            poll_id: u64,
-                            description: String,
-                            poll_start: u64,
-                            poll_end: u64) -> Result<()> {
-
-        let poll = &mut ctx.accounts.poll;
-        poll.poll_id = poll_id;
-        poll.description = description;
-        poll.poll_start = poll_start;
-        poll.poll_end = poll_end;
-        poll.candidate_amount = 0;
-        Ok(())
-    }
+    pub fn initialize_poll(
+      ctx: Context<InitializePoll>,
+      poll_id: u64,
+      description: String,
+      poll_start: u64,
+      poll_end: u64,
+  ) -> Result<()> {
+      let poll = &mut ctx.accounts.poll;
+      poll.poll_id = poll_id;
+      poll.description = description;
+      poll.poll_start = poll_start;
+      poll.poll_end = poll_end;
+      poll.candidate_amount = 0;
+      poll.total_votes = 0; // Initialize total votes
+      Ok(())
+  }
+  
 
     pub fn initialize_candidate(ctx: Context<InitializeCandidate>, 
                                 candidate_name: String,
@@ -34,13 +37,18 @@ pub mod voting {
     }
 
     pub fn vote(ctx: Context<Vote>, _candidate_name: String, _poll_id: u64) -> Result<()> {
-        let candidate = &mut ctx.accounts.candidate;
-        candidate.candidate_votes += 1;
-
-        msg!("Voted for candidate: {}", candidate.candidate_name);
-        msg!("Votes: {}", candidate.candidate_votes);
-        Ok(())
-    }
+      let candidate = &mut ctx.accounts.candidate;
+      let poll = &mut ctx.accounts.poll;
+  
+      candidate.candidate_votes += 1;
+      poll.total_votes += 1; // Increment total votes in the poll
+  
+      msg!("Voted for candidate: {}", candidate.candidate_name);
+      msg!("Votes: {}", candidate.candidate_votes);
+      msg!("Total Votes in Poll: {}", poll.total_votes);
+      Ok(())
+  }
+  
 
 }
 
@@ -124,4 +132,6 @@ pub struct Poll {
     pub poll_start: u64,
     pub poll_end: u64,
     pub candidate_amount: u64,
+    pub total_votes: u64, // Added this field
 }
+
