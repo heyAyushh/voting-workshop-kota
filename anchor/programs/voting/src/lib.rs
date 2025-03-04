@@ -15,18 +15,13 @@ pub mod voting {
         poll_start: u64,
         poll_end: u64
     ) -> Result<()> {
-        let current_time = Clock::get()?.unix_timestamp as u64;
-    
-        if poll_end <= current_time {
-            return Err(ErrorCode::PollEndInThePast.into());
-        }
-
         let poll = &mut ctx.accounts.poll;
         poll.poll_id = poll_id;
         poll.description = description;
         poll.poll_start = poll_start;
         poll.poll_end = poll_end;
         poll.candidate_amount = 0;
+        poll.voters = Vec::new(); 
         Ok(())
     }
 
