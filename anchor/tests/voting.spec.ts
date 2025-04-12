@@ -72,16 +72,15 @@ describe("Voting", () => {
       .signers([voter1])
       .rpc();
     
-
     try {
       await votingProgram.methods
         .vote("Pink", new anchor.BN(1))
         .signers([voter1])
         .rpc();
-      throw new Error("Voter should not be able to vote twice!"); 
+      throw new Error("Voter should not be able to vote twice!");
     } catch (err) {
       console.log("Duplicate vote attempt detected:", err.message);
-      expect(err.message).toContain("You have already voted."); 
+      expect(err.message).toContain("You have already voted.");
     }
 
     const [pinkAddress] = PublicKey.findProgramAddressSync(
@@ -90,6 +89,21 @@ describe("Voting", () => {
     );
     const pinkCandidate = await votingProgram.account.candidate.fetch(pinkAddress);
     console.log(pinkCandidate);
-    expect(pinkCandidate.candidateVotes.toNumber()).toBe(1); 
+    expect(pinkCandidate.candidateVotes.toNumber()).toBe(1);
+  });
+
+  it("updates candidate count in poll", async () => {
+    await votingProgram.methods
+      .initializeCandidate("Green", new anchor.BN(1))
+      .rpc();
+
+    const [pollAddress] = PublicKey.findProgramAddressSync(
+      [new anchor.BN(1).toArrayLike(Buffer, "le", 8)],
+      votingProgram.programId
+    );
+
+    const poll = await votingProgram.account.poll.fetch(pollAddress);
+    console.log("Candidate count:", poll.candidateAmount.toNumber());
+    expect(poll.candidateAmount.toNumber()).toBe(3); // 2 previous + 1 new = 3
   });
 });
