@@ -8,19 +8,18 @@ declare_id!("coUnmi3oBUtwtd9fjeAvSsJssXh5A5xyPbhpewyzRVF");
 pub mod voting {
     use super::*;
 
-    pub fn initialize_poll(ctx: Context<InitializePoll>, 
-                            poll_id: u64,
-                            description: String,
-                            poll_start: u64,
-                            poll_end: u64) -> Result<()> {
-
+    pub fn initialize_poll(
+        ctx: Context<InitializePoll>, 
+        poll_id: u64,
+        description: String,
+        poll_start: u64,
+        poll_end: u64,
+    ) -> Result<()> {
         let current_timestamp = Clock::get()?.unix_timestamp as u64;
-
 
         if poll_end <= current_timestamp {
             return Err(error!(PollError::PollEndInThePast));
         }
-
 
         if poll_end <= 0 {
             return Err(error!(PollError::InvalidPollEndTimestamp));
@@ -32,6 +31,7 @@ pub mod voting {
         poll.poll_start = poll_start;
         poll.poll_end = poll_end;
         poll.candidate_amount = 0;
+        poll.voters = Vec::new();
 
         Ok(())
     }
@@ -39,24 +39,32 @@ pub mod voting {
     pub fn initialize_candidate(
         ctx: Context<InitializeCandidate>, 
         candidate_name: String,
-        _poll_id: u64
+        _poll_id: u64,
     ) -> Result<()> {
         let candidate = &mut ctx.accounts.candidate;
+        let poll = &mut ctx.accounts.poll;
+
         candidate.candidate_name = candidate_name;
         candidate.candidate_votes = 0;
+
+        // Increment candidate count in the poll account
+        poll.candidate_amount += 1;
+
         Ok(())
     }
 
-    pub fn vote(ctx: Context<Vote>, _candidate_name: String, _poll_id: u64) -> Result<()> {
+    pub fn vote(
+        ctx: Context<Vote>, 
+        _candidate_name: String, 
+        _poll_id: u64,
+    ) -> Result<()> {
         let poll = &mut ctx.accounts.poll;
         let candidate = &mut ctx.accounts.candidate;
         let voter_key = ctx.accounts.signer.key();
 
-
         if poll.voters.contains(&voter_key) {
             return Err(error!(ErrorCode::AlreadyVoted));
         }
-
 
         poll.voters.push(voter_key);
         candidate.candidate_votes += 1;

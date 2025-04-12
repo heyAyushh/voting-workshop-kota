@@ -143,3 +143,18 @@ it("should fail if poll_end is not a valid Unix timestamp", async () => {
     expect(blueCandidate.candidateName).toBe("Blue");
   });
 });
+it("updates candidate count in poll", async () => {
+  await votingProgram.methods.initializeCandidate(
+    "Green",
+    new anchor.BN(1),
+  ).rpc();
+
+  const [pollAddress] = PublicKey.findProgramAddressSync(
+    [new anchor.BN(1).toArrayLike(Buffer, "le", 8)],
+    votingProgram.programId,
+  );
+
+  const poll = await votingProgram.account.poll.fetch(pollAddress);
+  console.log("Candidate count:", poll.candidateAmount.toNumber());
+  expect(poll.candidateAmount.toNumber()).toBe(3); // Assuming 2 candidates already existed
+});
