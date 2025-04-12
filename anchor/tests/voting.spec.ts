@@ -14,10 +14,7 @@ describe("Voting", () => {
   beforeAll(async () => {
     context = await startAnchor('', [{ name: "voting", programId: PROGRAM_ID }], []);
     provider = new BankrunProvider(context);
-    votingProgram = new anchor.Program<Voting>(
-      IDL,
-      provider,
-    );
+    votingProgram = new anchor.Program<Voting>(IDL, provider);
   });
 
   it("initializes a poll", async () => {
@@ -94,5 +91,22 @@ describe("Voting", () => {
     expect(pinkCandidate.candidateVotes.toNumber()).toBe(1);
     expect(blueCandidate.candidateVotes.toNumber()).toBe(1);
     expect(poll.totalVotes.toNumber()).toBe(2);
+  });
+
+  it("adds a new candidate and updates candidate count", async () => {
+    await votingProgram.methods.initializeCandidate(
+      "Green",
+      new anchor.BN(1),
+    ).rpc();
+
+    const [pollAddress] = PublicKey.findProgramAddressSync(
+      [new anchor.BN(1).toArrayLike(Buffer, "le", 8)],
+      votingProgram.programId,
+    );
+
+    const poll = await votingProgram.account.poll.fetch(pollAddress);
+    console.log("Candidate count after adding Green:", poll.candidateAmount.toNumber());
+
+    expect(poll.candidateAmount.toNumber()).toBe(3); // Now 3 candidates: Pink, Blue, Green
   });
 });
